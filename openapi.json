@@ -1,0 +1,135 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "srvcs-lcm",
+    "description": "",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /` — service identity (srvcs service standard).",
+        "operationId": "index",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Info"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [],
+        "summary": "`POST /` — compute `lcm(a, b)` by composing three primitives.",
+        "description": "This service owns the *control flow* but delegates every arithmetic step to\nits dependencies, exactly as specified:\n\n1. ask `srvcs-gcd` for `g = gcd(a, b)`;\n2. if `g == 0`, the result is `0` (no further calls);\n3. otherwise ask `srvcs-divide` for `q = a / g`, then `srvcs-multiply` for\n   `result = q * b` — i.e. `lcm = (a / gcd(a, b)) * b`.\n\nIf a dependency is unreachable it reports itself degraded (`503`); if a\ndependency rejects the input it forwards the `422`.",
+        "operationId": "evaluate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LcmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "a dependency rejected the input (forwarded)"
+          },
+          "500": {
+            "description": "a dependency returned a malformed result"
+          },
+          "503": {
+            "description": "a dependency is unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EvalRequest": {
+        "type": "object",
+        "required": [
+          "a",
+          "b"
+        ],
+        "properties": {
+          "a": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "b": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Info": {
+        "type": "object",
+        "required": [
+          "service",
+          "concern",
+          "depends_on"
+        ],
+        "properties": {
+          "concern": {
+            "type": "string"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "service": {
+            "type": "string"
+          }
+        }
+      },
+      "LcmResponse": {
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "result"
+        ],
+        "properties": {
+          "a": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "b": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "result": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    }
+  }
+}

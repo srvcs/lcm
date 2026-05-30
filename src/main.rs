@@ -1,0 +1,38 @@
+use srvcs_lcm::{api::Deps, config::Config, health, router, telemetry};
+
+async fn shutdown_signal() {
+    let ctrl_c = async { tokio::signal::ctrl_c().await.expect("ctrl_c") };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("SIGTERM")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
+    health::set_ready(false);
+    tracing::info!("shutdown signal received; draining");
+}
+
+#[tokio::main]
+async fn main() {
+    let cfg = Config::from_env();
+    telemetry::init(&cfg.log_level);
+    let metrics = telemetry::install_metrics();
+    health::set_ready(true);
+    let listener = tokio::net::TcpListener::bind(cfg.bind_addr).await.unwrap();
+    tracing::info!(addr = %cfg.bind_addr, env = %cfg.environment, "srvcs-lcm listening");
+    let deps = Deps {
+        gcd_url: cfg.gcd_url.clone(),
+        divide_url: cfg.divide_url.clone(),
+        multiply_url: cfg.multiply_url.clone(),
+    };
+    axum::serve(listener, router(metrics, deps))
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
